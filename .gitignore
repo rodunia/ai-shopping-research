@@ -1,0 +1,16 @@
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+
+data/*.csv
+data/**/*.csv
+reddit_ai_assisted_shopping_posts.csv
+logs/*.log
+manifests/*.json
+
+!data/.gitkeep
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!logs/.gitkeep
+!manifests/.gitkeep

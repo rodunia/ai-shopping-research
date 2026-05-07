@@ -1,0 +1,62 @@
+# Research topic:
+# AI-assisted shopping, delegated purchasing decisions, automated product
+# recommendations, online purchase failure, and responsibility attribution.
+
+# API mode settings. API mode is disabled until valid OAuth credentials exist
+# in .env. The code uses PRAW and official Reddit API access only.
+subreddits:
+  - artificial
+  - ChatGPT
+  - OpenAI
+  - singularity
+  - technology
+  - ecommerce
+  - CustomerService
+  - Scams
+  - BuyItForLife
+
+keywords:
+  - "AI shopping assistant"
+  - "AI shopping"
+  - "AI product recommendation"
+  - "automated shopping"
+  - "delegated purchasing"
+  - "AI agent buying"
+  - "AI agent shopping"
+  - "ChatGPT shopping"
+  - "ChatGPT recommendation"
+  - "wrong recommendation"
+  - "AI recommended the wrong product"
+  - "online purchase failure"
+  - "product recommendation failed"
+  - "blame AI"
+  - "AI responsibility"
+  - "AI assistant mistake"
+  - "automated recommendation failure"
+
+# Reddit search supports: hour, day, week, month, year, all.
+time_filter: year
+
+# Reddit search supports: relevance, hot, top, new, comments.
+sort: relevance
+
+max_posts_per_query: 25
+max_comments_per_post: 50
+comment_depth: 1
+comment_sort: top
+max_total_items: 1000
+
+output_csv_path: data/processed/reddit_api_collected.csv
+log_file_path: logs/reddit_collector.log
+api_manifest_path: manifests/collection_manifest.json
+
+request_delay_seconds: 1.0
+retry_attempts: 5
+backoff_initial_seconds: 2.0
+backoff_max_seconds: 60.0
+
+# Offline/manual mode settings. This mode only cleans user-provided CSV data.
+offline_input_csv_path: data/manual_input.csv
+offline_output_csv_path: data/processed/manual_cleaned.csv
+offline_log_file_path: logs/offline_cleaner.log
+offline_manifest_path: manifests/offline_manifest.json
