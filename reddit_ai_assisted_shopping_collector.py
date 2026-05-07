@@ -56,6 +56,7 @@ OUTPUT_CSV = "reddit_ai_assisted_shopping_posts.csv"
 REQUEST_DELAY_SECONDS = 4
 USER_AGENT = "low-volume-ai-assisted-shopping-research-script/0.1"
 REQUEST_TIMEOUT_SECONDS = 20
+SELF_TEXT_MAX_CHARS = 1000
 
 AI_ASSISTANCE_KEYWORDS = [
     "ai",
@@ -236,6 +237,7 @@ def get_config() -> dict[str, Any]:
         "request_delay_seconds": REQUEST_DELAY_SECONDS,
         "user_agent": USER_AGENT,
         "run_search": True,
+        "fetch_post_text": True,
     }
 
 
@@ -333,7 +335,7 @@ def fetch_url_with_single_retry(url: str) -> Any | None:
     return response
 
 
-def fetch_json_url(url: str) -> dict[str, Any] | None:
+def fetch_json_url(url: str) -> Any | None:
     """Fetch a public Reddit JSON URL without credentials."""
     response = fetch_url_with_single_retry(url)
     if response is None:
@@ -350,10 +352,6 @@ def fetch_json_url(url: str) -> dict[str, Any] | None:
 
     if isinstance(data, dict) and data.get("error") in BLOCKED_STATUS_CODES:
         record_failed_source(url, f"blocked JSON error {data.get('error')}")
-        return None
-
-    if not isinstance(data, dict):
-        record_failed_source(url, "unexpected JSON shape")
         return None
 
     return data
@@ -386,6 +384,9 @@ def fetch_subreddit_json_posts(subreddit: str, sort: str, limit: int) -> list[di
     data = fetch_json_url(url)
     if data is None:
         return None
+    if not isinstance(data, dict):
+        record_failed_source(url, "unexpected JSON listing shape")
+        return None
 
     children = data.get("data", {}).get("children", [])
     posts: list[dict[str, str]] = []
@@ -416,6 +417,9 @@ def search_subreddit_json(subreddit: str, query: str, limit: int) -> list[dict[s
     url = f"{REDDIT_BASE_URL}/r/{subreddit}/search.json?{params}"
     data = fetch_json_url(url)
     if data is None:
+        return None
+    if not isinstance(data, dict):
+        record_failed_source(url, "unexpected JSON search shape")
         return None
 
     children = data.get("data", {}).get("children", [])
@@ -457,6 +461,14 @@ def absolute_reddit_url(permalink: Any) -> str:
     return canonicalize_url(f"{REDDIT_BASE_URL}/{text.lstrip('/')}")
 
 
+def post_detail_json_url(post_url: str) -> str:
+    """Build a public Reddit JSON detail URL for a post."""
+    canonical_url = canonicalize_url(post_url)
+    if not canonical_url:
+        return ""
+    return f"{canonical_url}.json?{urlencode({'limit': 1})}"
+
+
 def canonicalize_url(url: str) -> str:
     parsed = urlparse(clean_text(url))
     if not parsed.scheme or not parsed.netloc:
@@ -481,9 +493,28 @@ def timestamp_from_struct_time(value: Any) -> str:
         return ""
 
 
+def extract_selftext_from_detail_json(data: Any) -> str:
+    """Extract submission selftext from a /comments/{post}.json response."""
+    if not isinstance(data, list) or not data:
+        return ""
+    first_listing = data[0]
+    if not isinstance(first_listing, dict):
+        return ""
+    children = first_listing.get("data", {}).get("children", [])
+    if not children:
+        return ""
+    raw_post = children[0].get("data", {})
+    if not isinstance(raw_post, dict):
+        return ""
+    selftext = clean_text(raw_post.get("selftext"), max_length=SELF_TEXT_MAX_CHARS)
+    if selftext.lower() in {"[deleted]", "[removed]"}:
+        return ""
+    return selftext
+
+
 def normalize_json_post(raw_post: dict[str, Any], subreddit: str, sort: str) -> dict[str, str] | None:
     title = clean_text(raw_post.get("title"))
-    selftext = clean_text(raw_post.get("selftext"), max_length=1000)
+    selftext = clean_text(raw_post.get("selftext"), max_length=SELF_TEXT_MAX_CHARS)
     if not title or title.lower() in {"[deleted]", "[removed]"}:
         return None
     if selftext.lower() in {"[deleted]", "[removed]"}:
@@ -518,7 +549,7 @@ def normalize_json_post(raw_post: dict[str, Any], subreddit: str, sort: str) -> 
 
 def normalize_rss_entry(entry: Any, subreddit: str, sort: str) -> dict[str, str] | None:
     title = clean_text(getattr(entry, "title", ""))
-    snippet = clean_text(getattr(entry, "summary", ""), max_length=1000)
+    snippet = clean_text(getattr(entry, "summary", ""), max_length=SELF_TEXT_MAX_CHARS)
     if not title or title.lower() in {"[deleted]", "[removed]"}:
         return None
     if snippet.lower() in {"[deleted]", "[removed]"}:
@@ -621,6 +652,29 @@ def deduplicate_posts(posts: list[dict[str, str]]) -> list[dict[str, str]]:
     return deduplicated
 
 
+def fetch_post_text(post: dict[str, str]) -> str:
+    """Fetch a saved post's public JSON detail and return selftext if present."""
+    detail_url = post_detail_json_url(post.get("post_url", ""))
+    if not detail_url:
+        return ""
+    data = fetch_json_url(detail_url)
+    if data is None:
+        return ""
+    return extract_selftext_from_detail_json(data)
+
+
+def enrich_posts_with_detail_text(posts: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Improve selftext_or_snippet for saved posts using public post JSON."""
+    enriched_posts: list[dict[str, str]] = []
+    for post in posts:
+        enriched = dict(post)
+        detail_text = fetch_post_text(enriched)
+        if detail_text:
+            enriched["selftext_or_snippet"] = detail_text
+        enriched_posts.append(enriched)
+    return enriched_posts
+
+
 def write_csv(posts: list[dict[str, str]], output_path: str) -> None:
     with open(output_path, "w", encoding="utf-8", newline="") as file_handle:
         writer = csv.DictWriter(file_handle, fieldnames=CSV_COLUMNS, extrasaction="ignore")
@@ -677,6 +731,8 @@ def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], Summary
 
     summary.relevant_posts_before_dedupe = len(relevant_posts)
     deduplicated_posts = deduplicate_posts(relevant_posts)
+    if config.get("fetch_post_text", True):
+        deduplicated_posts = enrich_posts_with_detail_text(deduplicated_posts)
     summary.relevant_posts_saved = len(deduplicated_posts)
     summary.duplicate_posts_removed = len(relevant_posts) - len(deduplicated_posts)
     return deduplicated_posts, summary
@@ -703,6 +759,11 @@ def parse_args() -> argparse.Namespace:
         "--skip-search",
         action="store_true",
         help="Only fetch subreddit listing JSON/RSS; skip high-intent subreddit search queries.",
+    )
+    parser.add_argument(
+        "--no-post-text",
+        action="store_true",
+        help="Do not fetch per-post JSON detail to enrich selftext_or_snippet.",
     )
     parser.add_argument(
         "--subreddit",
@@ -737,6 +798,7 @@ def main() -> int:
     config["limit"] = args.limit
     config["request_delay_seconds"] = args.delay
     config["run_search"] = not args.skip_search
+    config["fetch_post_text"] = not args.no_post_text
     if args.subreddit:
         config["subreddits"] = args.subreddit
 

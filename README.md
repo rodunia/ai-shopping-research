@@ -11,6 +11,7 @@ The topic is broader than "AI shopping agents". The script looks for posts about
 - No Pushshift, third-party datasets, proxies, CAPTCHA bypass, or browser automation.
 - No Playwright, Selenium, Puppeteer, or headless browser.
 - Uses lightweight public Reddit `.json` listing/search endpoints where accessible.
+- Uses public Reddit post `.json` detail endpoints for saved posts to collect post selftext when available.
 - Falls back to public Reddit RSS feeds when listing JSON is unavailable.
 - Stops using blocked, rate-limited, CAPTCHA, login-required, or unusable sources and logs a warning.
 - Intended only for low-volume academic/non-commercial research.
@@ -67,6 +68,14 @@ Skip high-intent subreddit search queries and only collect listing feeds:
 python reddit_ai_assisted_shopping_collector.py --skip-search
 ```
 
+By default, saved posts are enriched from each post's public Reddit `.json`
+detail endpoint so `selftext_or_snippet` contains the best available post text.
+Disable that extra request per saved post with:
+
+```bash
+python reddit_ai_assisted_shopping_collector.py --no-post-text
+```
+
 ## How Matching Works
 
 A post is saved when either:
@@ -86,6 +95,7 @@ The default config lives near the top of `reddit_ai_assisted_shopping_collector.
 - `OUTPUT_CSV`
 - `REQUEST_DELAY_SECONDS`
 - `USER_AGENT`
+- `SELF_TEXT_MAX_CHARS`
 - `AI_ASSISTANCE_KEYWORDS`
 - `SHOPPING_COMMERCE_KEYWORDS`
 - `HIGH_INTENT_PHRASES`
