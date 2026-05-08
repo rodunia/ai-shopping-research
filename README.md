@@ -68,46 +68,28 @@ Skip high-intent subreddit search queries and only collect listing feeds:
 python reddit_ai_assisted_shopping_collector.py --skip-search
 ```
 
-By default, saved core posts are enriched from each post's public Reddit `.json`
+By default, saved posts are enriched from each post's public Reddit `.json`
 detail endpoint so `selftext_or_snippet` contains the best available post text.
-Disable that extra request per saved core post with:
+Disable that extra request per saved post with:
 
 ```bash
 python reddit_ai_assisted_shopping_collector.py --no-post-text
 ```
 
-Write adjacent/discarded rows to a separate audit CSV for manual review:
-
-```bash
-python reddit_ai_assisted_shopping_collector.py --audit-csv reddit_ai_assisted_shopping_audit.csv
-```
-
 ## How Matching Works
 
-Keyword logic is layered for precision:
+A post is core relevant only when at least one of these is true:
 
-1. `STRONG_AI_TOOL_KEYWORDS`:
-   `chatgpt`, `claude`, `gemini`, `perplexity`, `llm`, `chatbot`, `ai assistant`, `ai agent`, `amazon rufus`.
-2. `SHOPPING_TASK_KEYWORDS`:
-   `what to buy`, `compare products`, `product recommendation`, `read reviews`, `find deals`, `price comparison`, `product discovery`, `purchase decision`.
-3. `HIGH_INTENT_PHRASES`:
-   direct shopping-with-AI phrasing such as `using chatgpt to shop`, `ask chatgpt what to buy`, `ai-assisted shopping`, `amazon rufus`.
+1. It matches a `HIGH_INTENT_PHRASE`.
+2. It contains at least one `STRONG_AI_TOOL_KEYWORD` and at least one `CONSUMER_SHOPPING_TASK_KEYWORD`.
+3. It contains at least one `STRONG_AI_TOOL_KEYWORD` and at least one `AI_COMMERCE_VISIBILITY_KEYWORD`.
 
-A post is core relevant only when:
+Core tiers:
 
-1. It matches at least one `HIGH_INTENT_PHRASE`, or
-2. It matches at least one `STRONG_AI_TOOL_KEYWORD` and at least one `SHOPPING_TASK_KEYWORD`.
+1. `core_consumer_ai_assisted_shopping`: consumers using AI tools to decide what to buy, compare products, read/summarize reviews, find deals, compare prices, or make purchase decisions.
+2. `core_ai_commerce_visibility`: product visibility and checkout/sales-through-AI contexts, such as products appearing in ChatGPT/Perplexity answers, AI search visibility, LLM checkout, and traffic/sales through AI answer engines.
 
-Broad-only combinations like `ai + product`, `ai + buy`, `ai + deal`, or `operator + ecommerce` are not core.
-
-The classifier also uses explicit exclusion patterns for common false positives like:
-
-- ChatGPT Plus purchase/subscription issues
-- Product Hunt/Codex/software-building posts
-- government or company AI deal news
-- marketing/ad-creative feedback posts
-- selling AI products without shopping-decision assistance context
-- generic AI gadgets or AI-generated image posts
+The classifier does not mark posts core or adjacent based only on generic AI/tool mentions (for example `ChatGPT`, `Claude`, `Gemini`, `Perplexity`, `AI`, `LLM`) without shopping/commerce intent context.
 
 ## Editing Config
 
@@ -121,7 +103,8 @@ The default config lives near the top of `reddit_ai_assisted_shopping_collector.
 - `USER_AGENT`
 - `SELF_TEXT_MAX_CHARS`
 - `STRONG_AI_TOOL_KEYWORDS`
-- `SHOPPING_TASK_KEYWORDS`
+- `CONSUMER_SHOPPING_TASK_KEYWORDS`
+- `AI_COMMERCE_VISIBILITY_KEYWORDS`
 - `HIGH_INTENT_PHRASES`
 - `EXCLUSION_PATTERNS`
 
@@ -138,6 +121,7 @@ sort
 relevance_type
 relevance_score
 relevance_tier
+relevance_reason
 matched_ai_assistance_keywords
 matched_shopping_commerce_keywords
 matched_high_intent_phrases
@@ -156,8 +140,12 @@ Normalization details:
 
 - `platform` is always `reddit`.
 - `source_type` is `json` or `rss`.
-- `relevance_tier` is `core_ai_assisted_shopping`, `adjacent_ai_commerce`, or `discarded`.
-- Main output CSV contains only `core_ai_assisted_shopping` rows by default.
+- `relevance_score` is a 0-10 score.
+- `relevance_tier` is one of:
+  `core_consumer_ai_assisted_shopping`, `core_ai_commerce_visibility`, `adjacent_ai_commerce`, `discarded`.
+- `relevance_reason` explains why a row got its tier.
+- Main output CSV saves only core rows by default.
+- `--audit-csv` saves all tiers (`core`, `adjacent`, `discarded`) for debugging/review.
 - Matched keyword lists are semicolon-separated.
 - Posts are deduplicated by `post_id` when available, otherwise by canonical Reddit post URL.
 - Missing fields are empty strings.

@@ -72,8 +72,9 @@ STRONG_AI_TOOL_KEYWORDS = [
     "amazon rufus",
 ]
 
-SHOPPING_TASK_KEYWORDS = [
+CONSUMER_SHOPPING_TASK_KEYWORDS = [
     "what to buy",
+    "decide what to buy",
     "compare products",
     "product recommendation",
     "product recommendations",
@@ -84,6 +85,27 @@ SHOPPING_TASK_KEYWORDS = [
     "product discovery",
     "shopping assistant",
     "purchase decision",
+]
+
+AI_COMMERCE_VISIBILITY_KEYWORDS = [
+    "products appearing in chatgpt answers",
+    "products appearing in perplexity answers",
+    "product visibility in chatgpt",
+    "product visibility in perplexity",
+    "product visibility in ai answers",
+    "ai search visibility",
+    "ai commerce visibility",
+    "llm checkout",
+    "checkout through chatgpt",
+    "checkout through llm",
+    "direct checkout through chatgpt",
+    "shopify llm checkout",
+    "sales through chatgpt",
+    "traffic through chatgpt",
+    "sales through perplexity",
+    "traffic through perplexity",
+    "ai-generated search answers",
+    "ai generated search answers",
 ]
 
 HIGH_INTENT_PHRASES = [
@@ -97,28 +119,66 @@ HIGH_INTENT_PHRASES = [
     "amazon rufus",
     "ai price comparison",
     "ai deal finder",
+    "product visibility in chatgpt answers",
+    "product visibility in perplexity answers",
+    "ai search visibility for products",
+    "ai commerce visibility",
+    "llm checkout",
+    "direct checkout through chatgpt",
+    "shopify llm checkout",
+    "sales through chatgpt",
+    "traffic through perplexity",
 ]
 
-BROAD_AI_WORDS = [
+CONSUMER_HIGH_INTENT_PHRASES = [
+    "using chatgpt to shop",
+    "ask chatgpt what to buy",
+    "ai shopping assistant",
+    "ai-assisted shopping",
+    "ai assisted shopping",
+    "chatgpt product recommendation",
+    "perplexity shopping",
+    "amazon rufus",
+    "ai price comparison",
+    "ai deal finder",
+]
+
+VISIBILITY_HIGH_INTENT_PHRASES = [
+    "product visibility in chatgpt answers",
+    "product visibility in perplexity answers",
+    "ai search visibility for products",
+    "ai commerce visibility",
+    "llm checkout",
+    "direct checkout through chatgpt",
+    "shopify llm checkout",
+    "sales through chatgpt",
+    "traffic through perplexity",
+]
+
+GENERIC_AI_SIGNAL_KEYWORDS = [
     "ai",
     "artificial intelligence",
-    "agentic",
-    "copilot",
-    "operator",
+    "llm",
+    "large language model",
+    "chatbot",
+    "chat bot",
 ]
 
-BROAD_COMMERCE_WORDS = [
-    "buy",
-    "buying",
-    "product",
-    "products",
-    "deal",
-    "deals",
-    "shop",
-    "shopping",
-    "store",
+WEAK_COMMERCE_CONTEXT_KEYWORDS = [
     "ecommerce",
-    "recommendation",
+    "e-commerce",
+    "retail",
+    "marketplace",
+    "merchant",
+    "storefront",
+    "store",
+    "checkout",
+    "cart",
+    "conversion",
+    "sales",
+    "traffic",
+    "shopify",
+    "online shopping",
 ]
 
 EXCLUSION_PATTERNS = [
@@ -141,6 +201,7 @@ CSV_COLUMNS = [
     "relevance_type",
     "relevance_score",
     "relevance_tier",
+    "relevance_reason",
     "matched_ai_assistance_keywords",
     "matched_shopping_commerce_keywords",
     "matched_high_intent_phrases",
@@ -155,7 +216,8 @@ CSV_COLUMNS = [
     "selftext_or_snippet",
 ]
 
-CORE_TIER = "core_ai_assisted_shopping"
+CORE_CONSUMER_TIER = "core_consumer_ai_assisted_shopping"
+CORE_VISIBILITY_TIER = "core_ai_commerce_visibility"
 ADJACENT_TIER = "adjacent_ai_commerce"
 DISCARDED_TIER = "discarded"
 
@@ -498,6 +560,7 @@ def normalize_json_post(raw_post: dict[str, Any], subreddit: str, sort: str) -> 
         "relevance_type": "",
         "relevance_score": "",
         "relevance_tier": "",
+        "relevance_reason": "",
         "matched_ai_assistance_keywords": "",
         "matched_shopping_commerce_keywords": "",
         "matched_high_intent_phrases": "",
@@ -535,6 +598,7 @@ def normalize_rss_entry(entry: Any, subreddit: str, sort: str) -> dict[str, str]
         "relevance_type": "",
         "relevance_score": "",
         "relevance_tier": "",
+        "relevance_reason": "",
         "matched_ai_assistance_keywords": "",
         "matched_shopping_commerce_keywords": "",
         "matched_high_intent_phrases": "",
@@ -569,13 +633,24 @@ def find_keyword_matches(text: str) -> dict[str, list[str]]:
         "strong_ai_tool": [
             keyword for keyword in STRONG_AI_TOOL_KEYWORDS if keyword_matches(text, keyword)
         ],
-        "shopping_task": [
-            keyword for keyword in SHOPPING_TASK_KEYWORDS if keyword_matches(text, keyword)
+        "consumer_shopping_task": [
+            keyword for keyword in CONSUMER_SHOPPING_TASK_KEYWORDS if keyword_matches(text, keyword)
+        ],
+        "ai_commerce_visibility": [
+            keyword for keyword in AI_COMMERCE_VISIBILITY_KEYWORDS if keyword_matches(text, keyword)
         ],
         "high_intent": [phrase for phrase in HIGH_INTENT_PHRASES if keyword_matches(text, phrase)],
-        "broad_ai": [keyword for keyword in BROAD_AI_WORDS if keyword_matches(text, keyword)],
-        "broad_commerce": [
-            keyword for keyword in BROAD_COMMERCE_WORDS if keyword_matches(text, keyword)
+        "consumer_high_intent": [
+            phrase for phrase in CONSUMER_HIGH_INTENT_PHRASES if keyword_matches(text, phrase)
+        ],
+        "visibility_high_intent": [
+            phrase for phrase in VISIBILITY_HIGH_INTENT_PHRASES if keyword_matches(text, phrase)
+        ],
+        "generic_ai_signal": [
+            keyword for keyword in GENERIC_AI_SIGNAL_KEYWORDS if keyword_matches(text, keyword)
+        ],
+        "weak_commerce_context": [
+            keyword for keyword in WEAK_COMMERCE_CONTEXT_KEYWORDS if keyword_matches(text, keyword)
         ],
     }
 
@@ -597,46 +672,92 @@ def classify_relevance(post: dict[str, str]) -> dict[str, str]:
     matches = find_keyword_matches(searchable_text)
     excluded = matches_exclusion_pattern(searchable_text)
     has_high_intent = bool(matches["high_intent"])
-    has_tool_and_task = bool(matches["strong_ai_tool"] and matches["shopping_task"])
-    has_broad_ai_and_commerce = bool(matches["broad_ai"] and matches["broad_commerce"])
+    has_strong_tool = bool(matches["strong_ai_tool"])
+    has_consumer_task = bool(matches["consumer_shopping_task"])
+    has_visibility_term = bool(matches["ai_commerce_visibility"])
+    has_weak_commerce_context = bool(matches["weak_commerce_context"])
+    has_generic_ai_signal = bool(matches["generic_ai_signal"])
+    has_consumer_high_intent = bool(matches["consumer_high_intent"])
+    has_visibility_high_intent = bool(matches["visibility_high_intent"])
 
     if excluded:
         relevance_tier = DISCARDED_TIER
         relevance_type = "excluded_false_positive_pattern"
+        relevance_reason = "excluded_false_positive_pattern"
         relevance_score = 0
-    elif has_high_intent and has_tool_and_task:
-        relevance_tier = CORE_TIER
-        relevance_type = "high_intent_phrase_and_strong_ai_tool_plus_shopping_task"
-        relevance_score = 100
-    elif has_high_intent:
-        relevance_tier = CORE_TIER
-        relevance_type = "high_intent_phrase"
-        relevance_score = 95
-    elif has_tool_and_task:
-        relevance_tier = CORE_TIER
-        relevance_type = "strong_ai_tool_plus_shopping_task"
-        relevance_score = 88
-    elif has_broad_ai_and_commerce or matches["strong_ai_tool"] or matches["shopping_task"]:
-        relevance_tier = ADJACENT_TIER
-        relevance_type = "adjacent_ai_or_commerce_context"
-        relevance_score = 45
     else:
-        relevance_tier = DISCARDED_TIER
-        relevance_type = "no_core_signal"
-        relevance_score = 0
+        consumer_core = has_consumer_high_intent or (has_strong_tool and has_consumer_task)
+        visibility_core = has_visibility_high_intent or (has_strong_tool and has_visibility_term)
+
+        consumer_score = min(
+            10,
+            4
+            + min(len(matches["consumer_high_intent"]) * 3, 4)
+            + (2 if has_strong_tool and has_consumer_task else 0)
+            + min(len(matches["consumer_shopping_task"]), 2),
+        )
+        visibility_score = min(
+            10,
+            4
+            + min(len(matches["visibility_high_intent"]) * 3, 4)
+            + (2 if has_strong_tool and has_visibility_term else 0)
+            + min(len(matches["ai_commerce_visibility"]), 2),
+        )
+        adjacent_score = min(
+            6,
+            1
+            + min(len(matches["weak_commerce_context"]), 2)
+            + (1 if has_strong_tool else 0)
+            + (1 if has_generic_ai_signal else 0),
+        )
+
+        if consumer_core or visibility_core:
+            if visibility_core and visibility_score >= consumer_score:
+                relevance_tier = CORE_VISIBILITY_TIER
+                relevance_type = "core_ai_commerce_visibility"
+                if has_visibility_high_intent:
+                    relevance_reason = "high_intent_visibility_phrase"
+                else:
+                    relevance_reason = "strong_ai_tool_plus_visibility_term"
+                relevance_score = visibility_score
+            else:
+                relevance_tier = CORE_CONSUMER_TIER
+                relevance_type = "core_consumer_ai_assisted_shopping"
+                if has_consumer_high_intent:
+                    relevance_reason = "high_intent_consumer_phrase"
+                else:
+                    relevance_reason = "strong_ai_tool_plus_consumer_task"
+                relevance_score = consumer_score
+        elif has_weak_commerce_context and (has_strong_tool or has_generic_ai_signal):
+            relevance_tier = ADJACENT_TIER
+            relevance_type = "adjacent_ai_commerce"
+            relevance_reason = "weak_commerce_context_with_ai_signal"
+            relevance_score = adjacent_score
+        else:
+            relevance_tier = DISCARDED_TIER
+            relevance_type = "discarded"
+            relevance_reason = "no_core_or_adjacent_signal"
+            relevance_score = 0
 
     classified = dict(post)
     classified["relevance_type"] = relevance_type
     classified["relevance_score"] = str(relevance_score)
     classified["relevance_tier"] = relevance_tier
+    classified["relevance_reason"] = relevance_reason
     classified["matched_ai_assistance_keywords"] = "; ".join(matches["strong_ai_tool"])
-    classified["matched_shopping_commerce_keywords"] = "; ".join(matches["shopping_task"])
+    matched_commerce = matches["consumer_shopping_task"] + matches["ai_commerce_visibility"]
+    classified["matched_shopping_commerce_keywords"] = "; ".join(matched_commerce)
     classified["matched_high_intent_phrases"] = "; ".join(matches["high_intent"])
     return classified
 
 
 def deduplicate_posts(posts: list[dict[str, str]]) -> list[dict[str, str]]:
-    tier_rank = {CORE_TIER: 3, ADJACENT_TIER: 2, DISCARDED_TIER: 1}
+    tier_rank = {
+        CORE_CONSUMER_TIER: 3,
+        CORE_VISIBILITY_TIER: 3,
+        ADJACENT_TIER: 2,
+        DISCARDED_TIER: 1,
+    }
     best_by_key: dict[str, dict[str, str]] = {}
     for post in posts:
         post_id = post.get("post_id", "")
@@ -744,22 +865,17 @@ def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], list[di
 
     summary.relevant_posts_before_dedupe = len(classified_posts)
     deduplicated_posts = deduplicate_posts(classified_posts)
-    core_posts = [post for post in deduplicated_posts if post.get("relevance_tier") == CORE_TIER]
-    audit_posts = [
-        post
-        for post in deduplicated_posts
-        if post.get("relevance_tier") != CORE_TIER
-        and (
-            int(post.get("relevance_score", "0") or "0") > 0
-            or post.get("relevance_type") == "excluded_false_positive_pattern"
-        )
-    ]
+    core_tiers = {CORE_CONSUMER_TIER, CORE_VISIBILITY_TIER}
+    core_posts = [post for post in deduplicated_posts if post.get("relevance_tier") in core_tiers]
+    audit_posts = list(deduplicated_posts)
 
     if config.get("fetch_post_text", True):
         core_posts = enrich_posts_with_detail_text(core_posts)
 
     summary.relevant_posts_saved = len(core_posts)
-    summary.adjacent_or_discarded_for_audit = len(audit_posts)
+    summary.adjacent_or_discarded_for_audit = len(
+        [post for post in deduplicated_posts if post.get("relevance_tier") not in core_tiers]
+    )
     summary.duplicate_posts_removed = len(classified_posts) - len(deduplicated_posts)
     return core_posts, audit_posts, summary
 
@@ -799,7 +915,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--audit-csv",
         default="",
-        help="Optional CSV path for adjacent/discarded rows for manual review.",
+        help="Optional CSV path for all tiers (core, adjacent, discarded) for manual review.",
     )
     return parser.parse_args()
 

@@ -63,8 +63,9 @@ python reddit_ai_assisted_shopping_collector.py --limit 10
 - The script writes a fresh CSV each run at `reddit_ai_assisted_shopping_posts.csv` unless `--output` is changed.
 - Output is not append mode.
 - Dedupe is by `post_id`, then canonical Reddit post URL.
-- Main output writes only `core_ai_assisted_shopping` rows.
-- Use `--audit-csv <path>` to optionally write `adjacent_ai_commerce` and `discarded` rows for review.
+- Main output writes only core rows:
+  `core_consumer_ai_assisted_shopping` and `core_ai_commerce_visibility`.
+- Use `--audit-csv <path>` to write all tiers (`core`, `adjacent`, `discarded`) for review.
 - Saved core posts are enriched by default from each post's public detail JSON endpoint to improve `selftext_or_snippet`.
 - You can disable text enrichment with:
 
@@ -112,7 +113,7 @@ What to look for:
 
 If quality is too loose:
 
-1. Tighten `SHOPPING_TASK_KEYWORDS` in `reddit_ai_assisted_shopping_collector.py`:
+1. Tighten `CONSUMER_SHOPPING_TASK_KEYWORDS` and `AI_COMMERCE_VISIBILITY_KEYWORDS` in `reddit_ai_assisted_shopping_collector.py`:
    remove or de-prioritize broad tokens (`product`, `products`, `deals`) if needed.
 2. Expand `HIGH_INTENT_PHRASES` with stronger behavior phrases you care about.
 3. Update `EXCLUSION_PATTERNS` with newly discovered false positives.
