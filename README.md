@@ -68,22 +68,46 @@ Skip high-intent subreddit search queries and only collect listing feeds:
 python reddit_ai_assisted_shopping_collector.py --skip-search
 ```
 
-By default, saved posts are enriched from each post's public Reddit `.json`
+By default, saved core posts are enriched from each post's public Reddit `.json`
 detail endpoint so `selftext_or_snippet` contains the best available post text.
-Disable that extra request per saved post with:
+Disable that extra request per saved core post with:
 
 ```bash
 python reddit_ai_assisted_shopping_collector.py --no-post-text
 ```
 
+Write adjacent/discarded rows to a separate audit CSV for manual review:
+
+```bash
+python reddit_ai_assisted_shopping_collector.py --audit-csv reddit_ai_assisted_shopping_audit.csv
+```
+
 ## How Matching Works
 
-A post is saved when either:
+Keyword logic is layered for precision:
 
-1. It contains at least one high-intent phrase, such as `ai assisted shopping`, `using chatgpt to shop`, `ai product recommendation`, `ai price comparison`, or `amazon rufus`.
-2. It contains at least one AI-assistance keyword and at least one shopping/commerce keyword.
+1. `STRONG_AI_TOOL_KEYWORDS`:
+   `chatgpt`, `claude`, `gemini`, `perplexity`, `llm`, `chatbot`, `ai assistant`, `ai agent`, `amazon rufus`.
+2. `SHOPPING_TASK_KEYWORDS`:
+   `what to buy`, `compare products`, `product recommendation`, `read reviews`, `find deals`, `price comparison`, `product discovery`, `purchase decision`.
+3. `HIGH_INTENT_PHRASES`:
+   direct shopping-with-AI phrasing such as `using chatgpt to shop`, `ask chatgpt what to buy`, `ai-assisted shopping`, `amazon rufus`.
 
-The script matches against title, selftext/snippet, Reddit post URL, and external URL. It intentionally avoids saving generic AI posts that have no shopping, product, retail, ecommerce, buying, recommendation, review, deal, or price-comparison connection.
+A post is core relevant only when:
+
+1. It matches at least one `HIGH_INTENT_PHRASE`, or
+2. It matches at least one `STRONG_AI_TOOL_KEYWORD` and at least one `SHOPPING_TASK_KEYWORD`.
+
+Broad-only combinations like `ai + product`, `ai + buy`, `ai + deal`, or `operator + ecommerce` are not core.
+
+The classifier also uses explicit exclusion patterns for common false positives like:
+
+- ChatGPT Plus purchase/subscription issues
+- Product Hunt/Codex/software-building posts
+- government or company AI deal news
+- marketing/ad-creative feedback posts
+- selling AI products without shopping-decision assistance context
+- generic AI gadgets or AI-generated image posts
 
 ## Editing Config
 
@@ -96,9 +120,10 @@ The default config lives near the top of `reddit_ai_assisted_shopping_collector.
 - `REQUEST_DELAY_SECONDS`
 - `USER_AGENT`
 - `SELF_TEXT_MAX_CHARS`
-- `AI_ASSISTANCE_KEYWORDS`
-- `SHOPPING_COMMERCE_KEYWORDS`
+- `STRONG_AI_TOOL_KEYWORDS`
+- `SHOPPING_TASK_KEYWORDS`
 - `HIGH_INTENT_PHRASES`
+- `EXCLUSION_PATTERNS`
 
 Edit those lists directly for your study.
 
@@ -111,6 +136,8 @@ source_type
 subreddit
 sort
 relevance_type
+relevance_score
+relevance_tier
 matched_ai_assistance_keywords
 matched_shopping_commerce_keywords
 matched_high_intent_phrases
@@ -129,7 +156,8 @@ Normalization details:
 
 - `platform` is always `reddit`.
 - `source_type` is `json` or `rss`.
-- `relevance_type` is `high_intent_phrase`, `ai_plus_shopping`, or `high_intent_phrase_and_ai_plus_shopping`.
+- `relevance_tier` is `core_ai_assisted_shopping`, `adjacent_ai_commerce`, or `discarded`.
+- Main output CSV contains only `core_ai_assisted_shopping` rows by default.
 - Matched keyword lists are semicolon-separated.
 - Posts are deduplicated by `post_id` when available, otherwise by canonical Reddit post URL.
 - Missing fields are empty strings.
@@ -144,6 +172,7 @@ At the end, it prints:
 - subreddits checked;
 - total raw posts seen;
 - relevant posts saved;
+- adjacent/discarded rows;
 - duplicate posts removed;
 - failed or blocked sources;
 - output CSV path.

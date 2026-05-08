@@ -63,7 +63,9 @@ python reddit_ai_assisted_shopping_collector.py --limit 10
 - The script writes a fresh CSV each run at `reddit_ai_assisted_shopping_posts.csv` unless `--output` is changed.
 - Output is not append mode.
 - Dedupe is by `post_id`, then canonical Reddit post URL.
-- Saved posts are enriched by default from each post's public detail JSON endpoint to improve `selftext_or_snippet`.
+- Main output writes only `core_ai_assisted_shopping` rows.
+- Use `--audit-csv <path>` to optionally write `adjacent_ai_commerce` and `discarded` rows for review.
+- Saved core posts are enriched by default from each post's public detail JSON endpoint to improve `selftext_or_snippet`.
 - You can disable text enrichment with:
 
 ```bash
@@ -104,16 +106,18 @@ What to look for:
 - Too many generic posts matching only weak terms like `ai + product` or `ai + deals`.
 - Whether `matched_high_intent_phrases` appears frequently enough for your study objective.
 - Whether key subreddits are over/under represented.
+- Whether audit rows are dominated by known false-positive buckets.
 
 ## Relevance tuning workflow
 
 If quality is too loose:
 
-1. Tighten `SHOPPING_COMMERCE_KEYWORDS` in `reddit_ai_assisted_shopping_collector.py`:
+1. Tighten `SHOPPING_TASK_KEYWORDS` in `reddit_ai_assisted_shopping_collector.py`:
    remove or de-prioritize broad tokens (`product`, `products`, `deals`) if needed.
 2. Expand `HIGH_INTENT_PHRASES` with stronger behavior phrases you care about.
-3. Re-run a small test batch.
-4. Compare title-level precision before broader scraping.
+3. Update `EXCLUSION_PATTERNS` with newly discovered false positives.
+4. Re-run a small test batch with `--audit-csv`.
+5. Compare title-level precision before broader scraping.
 
 ## Git workflow for this repo
 

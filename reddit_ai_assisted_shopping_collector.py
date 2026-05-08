@@ -58,122 +58,78 @@ USER_AGENT = "low-volume-ai-assisted-shopping-research-script/0.1"
 REQUEST_TIMEOUT_SECONDS = 20
 SELF_TEXT_MAX_CHARS = 1000
 
-AI_ASSISTANCE_KEYWORDS = [
-    "ai",
-    "artificial intelligence",
+STRONG_AI_TOOL_KEYWORDS = [
     "chatgpt",
     "claude",
     "gemini",
     "perplexity",
-    "copilot",
     "llm",
     "large language model",
     "chatbot",
     "chat bot",
     "ai assistant",
-    "virtual assistant",
     "ai agent",
-    "ai agents",
-    "agentic",
-    "agentic ai",
-    "autonomous agent",
-    "browser agent",
-    "web agent",
-    "operator",
-    "openai operator",
     "amazon rufus",
-    "google shopping ai",
-    "shopify ai",
 ]
 
-SHOPPING_COMMERCE_KEYWORDS = [
-    "shopping",
-    "shop",
-    "online shopping",
-    "buy",
-    "buying",
-    "bought",
-    "purchase",
-    "purchasing",
-    "checkout",
-    "cart",
-    "ecommerce",
-    "e-commerce",
-    "commerce",
-    "retail",
-    "store",
-    "marketplace",
-    "product",
-    "products",
-    "product search",
-    "product discovery",
-    "recommendation",
-    "recommendations",
-    "review",
-    "reviews",
+SHOPPING_TASK_KEYWORDS = [
+    "what to buy",
+    "compare products",
+    "product recommendation",
+    "product recommendations",
+    "read reviews",
+    "summarize reviews",
+    "find deals",
     "price comparison",
-    "compare prices",
-    "deal",
-    "deals",
-    "discount",
-    "coupon",
-    "affiliate",
-    "merchant",
-    "storefront",
-    "shopify",
-    "amazon",
-    "walmart",
-    "target",
-    "etsy",
-    "temu",
-    "shein",
+    "product discovery",
+    "shopping assistant",
+    "purchase decision",
 ]
 
 HIGH_INTENT_PHRASES = [
-    "ai assisted shopping",
-    "ai-assisted shopping",
-    "shopping with ai",
-    "shopping using ai",
     "using chatgpt to shop",
-    "use chatgpt to shop",
-    "using chatgpt for shopping",
-    "chatgpt shopping",
-    "claude shopping",
-    "gemini shopping",
-    "perplexity shopping",
-    "llm shopping",
-    "shopping chatbot",
-    "shopping chat bot",
+    "ask chatgpt what to buy",
     "ai shopping assistant",
-    "ai shopping agent",
-    "shopping copilot",
-    "shopping co-pilot",
-    "personal shopping assistant",
-    "personal ai shopper",
-    "ai product recommendations",
-    "ai product recommendation",
-    "ai product discovery",
-    "ai product search",
+    "ai-assisted shopping",
+    "ai assisted shopping",
+    "chatgpt product recommendation",
+    "perplexity shopping",
+    "amazon rufus",
     "ai price comparison",
     "ai deal finder",
-    "ai deal finding",
-    "ai buying assistant",
-    "ai purchase assistant",
-    "ai purchasing assistant",
-    "ai helped me buy",
-    "chatgpt helped me buy",
-    "chatgpt product recommendation",
-    "ask chatgpt what to buy",
-    "ask ai what to buy",
-    "ai to compare products",
-    "chatgpt to compare products",
-    "ai to find deals",
-    "chatgpt to find deals",
-    "ai to read reviews",
-    "chatgpt to read reviews",
-    "amazon rufus",
-    "agentic commerce",
-    "agentic shopping",
+]
+
+BROAD_AI_WORDS = [
+    "ai",
+    "artificial intelligence",
+    "agentic",
+    "copilot",
+    "operator",
+]
+
+BROAD_COMMERCE_WORDS = [
+    "buy",
+    "buying",
+    "product",
+    "products",
+    "deal",
+    "deals",
+    "shop",
+    "shopping",
+    "store",
+    "ecommerce",
+    "recommendation",
+]
+
+EXCLUSION_PATTERNS = [
+    r"chatgpt\s+plus.*(purchase|buy|billing|payment|subscription|free trial|trial)",
+    r"(purchase|buy|billing|payment|subscription|free trial|trial).*(chatgpt\s+plus)",
+    r"\b(product hunt|codex|ship faster|build(ing)? software|saas launch|developer tool)\b",
+    r"\b(pentagon|government|classified|defense).*\b(ai|artificial intelligence)\b.*\b(deal|deals|contract)\b",
+    r"\b(company|startup|vendor|firm|stock|earnings|funding|acquisition|merger|contract)\b.*\b(ai|artificial intelligence)\b.*\b(deal|deals)\b",
+    r"\b(ai marketing|ad creative|customer feedback|marketing strategy)\b",
+    r"\b(selling|sell|for sale)\b.*\b(ai product|ai app|ai tool)\b",
+    r"\b(ai gadget|ai gadgets|ai-generated image|ai generated image|midjourney|stable diffusion)\b",
 ]
 
 CSV_COLUMNS = [
@@ -183,6 +139,8 @@ CSV_COLUMNS = [
     "subreddit",
     "sort",
     "relevance_type",
+    "relevance_score",
+    "relevance_tier",
     "matched_ai_assistance_keywords",
     "matched_shopping_commerce_keywords",
     "matched_high_intent_phrases",
@@ -196,6 +154,10 @@ CSV_COLUMNS = [
     "external_url",
     "selftext_or_snippet",
 ]
+
+CORE_TIER = "core_ai_assisted_shopping"
+ADJACENT_TIER = "adjacent_ai_commerce"
+DISCARDED_TIER = "discarded"
 
 TRANSIENT_STATUS_CODES = {500, 502, 503, 504}
 BLOCKED_STATUS_CODES = {401, 403, 429}
@@ -218,6 +180,7 @@ class Summary:
     total_raw_posts_seen: int = 0
     relevant_posts_before_dedupe: int = 0
     relevant_posts_saved: int = 0
+    adjacent_or_discarded_for_audit: int = 0
     duplicate_posts_removed: int = 0
 
 
@@ -238,6 +201,7 @@ def get_config() -> dict[str, Any]:
         "user_agent": USER_AGENT,
         "run_search": True,
         "fetch_post_text": True,
+        "audit_csv": "",
     }
 
 
@@ -532,6 +496,8 @@ def normalize_json_post(raw_post: dict[str, Any], subreddit: str, sort: str) -> 
         "subreddit": clean_text(raw_post.get("subreddit") or subreddit),
         "sort": sort,
         "relevance_type": "",
+        "relevance_score": "",
+        "relevance_tier": "",
         "matched_ai_assistance_keywords": "",
         "matched_shopping_commerce_keywords": "",
         "matched_high_intent_phrases": "",
@@ -567,6 +533,8 @@ def normalize_rss_entry(entry: Any, subreddit: str, sort: str) -> dict[str, str]
         "subreddit": subreddit,
         "sort": sort,
         "relevance_type": "",
+        "relevance_score": "",
+        "relevance_tier": "",
         "matched_ai_assistance_keywords": "",
         "matched_shopping_commerce_keywords": "",
         "matched_high_intent_phrases": "",
@@ -598,17 +566,26 @@ def keyword_matches(text: str, keyword: str) -> bool:
 
 def find_keyword_matches(text: str) -> dict[str, list[str]]:
     return {
-        "ai_assistance": [
-            keyword for keyword in AI_ASSISTANCE_KEYWORDS if keyword_matches(text, keyword)
+        "strong_ai_tool": [
+            keyword for keyword in STRONG_AI_TOOL_KEYWORDS if keyword_matches(text, keyword)
         ],
-        "shopping_commerce": [
-            keyword for keyword in SHOPPING_COMMERCE_KEYWORDS if keyword_matches(text, keyword)
+        "shopping_task": [
+            keyword for keyword in SHOPPING_TASK_KEYWORDS if keyword_matches(text, keyword)
         ],
         "high_intent": [phrase for phrase in HIGH_INTENT_PHRASES if keyword_matches(text, phrase)],
+        "broad_ai": [keyword for keyword in BROAD_AI_WORDS if keyword_matches(text, keyword)],
+        "broad_commerce": [
+            keyword for keyword in BROAD_COMMERCE_WORDS if keyword_matches(text, keyword)
+        ],
     }
 
 
-def classify_relevance(post: dict[str, str]) -> dict[str, str] | None:
+def matches_exclusion_pattern(text: str) -> bool:
+    normalized = clean_text(text).lower()
+    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in EXCLUSION_PATTERNS)
+
+
+def classify_relevance(post: dict[str, str]) -> dict[str, str]:
     searchable_text = " ".join(
         [
             post.get("title", ""),
@@ -618,38 +595,76 @@ def classify_relevance(post: dict[str, str]) -> dict[str, str] | None:
         ]
     )
     matches = find_keyword_matches(searchable_text)
+    excluded = matches_exclusion_pattern(searchable_text)
     has_high_intent = bool(matches["high_intent"])
-    has_ai_plus_shopping = bool(matches["ai_assistance"] and matches["shopping_commerce"])
+    has_tool_and_task = bool(matches["strong_ai_tool"] and matches["shopping_task"])
+    has_broad_ai_and_commerce = bool(matches["broad_ai"] and matches["broad_commerce"])
 
-    if not has_high_intent and not has_ai_plus_shopping:
-        return None
-
-    if has_high_intent and has_ai_plus_shopping:
-        relevance_type = "high_intent_phrase_and_ai_plus_shopping"
+    if excluded:
+        relevance_tier = DISCARDED_TIER
+        relevance_type = "excluded_false_positive_pattern"
+        relevance_score = 0
+    elif has_high_intent and has_tool_and_task:
+        relevance_tier = CORE_TIER
+        relevance_type = "high_intent_phrase_and_strong_ai_tool_plus_shopping_task"
+        relevance_score = 100
     elif has_high_intent:
+        relevance_tier = CORE_TIER
         relevance_type = "high_intent_phrase"
+        relevance_score = 95
+    elif has_tool_and_task:
+        relevance_tier = CORE_TIER
+        relevance_type = "strong_ai_tool_plus_shopping_task"
+        relevance_score = 88
+    elif has_broad_ai_and_commerce or matches["strong_ai_tool"] or matches["shopping_task"]:
+        relevance_tier = ADJACENT_TIER
+        relevance_type = "adjacent_ai_or_commerce_context"
+        relevance_score = 45
     else:
-        relevance_type = "ai_plus_shopping"
+        relevance_tier = DISCARDED_TIER
+        relevance_type = "no_core_signal"
+        relevance_score = 0
 
     classified = dict(post)
     classified["relevance_type"] = relevance_type
-    classified["matched_ai_assistance_keywords"] = "; ".join(matches["ai_assistance"])
-    classified["matched_shopping_commerce_keywords"] = "; ".join(matches["shopping_commerce"])
+    classified["relevance_score"] = str(relevance_score)
+    classified["relevance_tier"] = relevance_tier
+    classified["matched_ai_assistance_keywords"] = "; ".join(matches["strong_ai_tool"])
+    classified["matched_shopping_commerce_keywords"] = "; ".join(matches["shopping_task"])
     classified["matched_high_intent_phrases"] = "; ".join(matches["high_intent"])
     return classified
 
 
 def deduplicate_posts(posts: list[dict[str, str]]) -> list[dict[str, str]]:
-    seen: set[str] = set()
-    deduplicated: list[dict[str, str]] = []
+    tier_rank = {CORE_TIER: 3, ADJACENT_TIER: 2, DISCARDED_TIER: 1}
+    best_by_key: dict[str, dict[str, str]] = {}
     for post in posts:
         post_id = post.get("post_id", "")
-        key = f"id:{post_id}" if post_id else f"url:{canonicalize_url(post.get('post_url', ''))}"
-        if not key or key in seen:
+        canonical_url = canonicalize_url(post.get("post_url", ""))
+        if post_id:
+            key = f"id:{post_id}"
+        elif canonical_url:
+            key = f"url:{canonical_url}"
+        else:
             continue
-        seen.add(key)
-        deduplicated.append(post)
-    return deduplicated
+
+        previous = best_by_key.get(key)
+        if previous is None:
+            best_by_key[key] = post
+            continue
+
+        previous_rank = tier_rank.get(previous.get("relevance_tier", DISCARDED_TIER), 0)
+        current_rank = tier_rank.get(post.get("relevance_tier", DISCARDED_TIER), 0)
+        if current_rank > previous_rank:
+            best_by_key[key] = post
+            continue
+        if current_rank == previous_rank:
+            previous_score = int(previous.get("relevance_score", "0") or "0")
+            current_score = int(post.get("relevance_score", "0") or "0")
+            if current_score > previous_score:
+                best_by_key[key] = post
+
+    return list(best_by_key.values())
 
 
 def fetch_post_text(post: dict[str, str]) -> str:
@@ -695,9 +710,9 @@ def unique_failed_sources() -> list[dict[str, str]]:
     return unique
 
 
-def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], Summary]:
+def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], list[dict[str, str]], Summary]:
     summary = Summary(subreddits_checked=len(config["subreddits"]))
-    relevant_posts: list[dict[str, str]] = []
+    classified_posts: list[dict[str, str]] = []
 
     for subreddit in config["subreddits"]:
         subreddit_json_failed = False
@@ -713,8 +728,7 @@ def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], Summary
             summary.total_raw_posts_seen += len(posts)
             for post in posts:
                 classified = classify_relevance(post)
-                if classified:
-                    relevant_posts.append(classified)
+                classified_posts.append(classified)
 
         if config["run_search"] and not subreddit_json_failed:
             for query in HIGH_INTENT_PHRASES:
@@ -724,18 +738,30 @@ def collect_posts(config: dict[str, Any]) -> tuple[list[dict[str, str]], Summary
                 summary.total_raw_posts_seen += len(search_posts)
                 for post in search_posts:
                     classified = classify_relevance(post)
-                    if classified:
-                        relevant_posts.append(classified)
+                    classified_posts.append(classified)
         elif config["run_search"] and subreddit_json_failed:
             log_warning(f"skipping JSON search queries for r/{subreddit} after JSON listing failure")
 
-    summary.relevant_posts_before_dedupe = len(relevant_posts)
-    deduplicated_posts = deduplicate_posts(relevant_posts)
+    summary.relevant_posts_before_dedupe = len(classified_posts)
+    deduplicated_posts = deduplicate_posts(classified_posts)
+    core_posts = [post for post in deduplicated_posts if post.get("relevance_tier") == CORE_TIER]
+    audit_posts = [
+        post
+        for post in deduplicated_posts
+        if post.get("relevance_tier") != CORE_TIER
+        and (
+            int(post.get("relevance_score", "0") or "0") > 0
+            or post.get("relevance_type") == "excluded_false_positive_pattern"
+        )
+    ]
+
     if config.get("fetch_post_text", True):
-        deduplicated_posts = enrich_posts_with_detail_text(deduplicated_posts)
-    summary.relevant_posts_saved = len(deduplicated_posts)
-    summary.duplicate_posts_removed = len(relevant_posts) - len(deduplicated_posts)
-    return deduplicated_posts, summary
+        core_posts = enrich_posts_with_detail_text(core_posts)
+
+    summary.relevant_posts_saved = len(core_posts)
+    summary.adjacent_or_discarded_for_audit = len(audit_posts)
+    summary.duplicate_posts_removed = len(classified_posts) - len(deduplicated_posts)
+    return core_posts, audit_posts, summary
 
 
 def parse_args() -> argparse.Namespace:
@@ -770,15 +796,21 @@ def parse_args() -> argparse.Namespace:
         action="append",
         help="Restrict run to one subreddit. Can be supplied more than once.",
     )
+    parser.add_argument(
+        "--audit-csv",
+        default="",
+        help="Optional CSV path for adjacent/discarded rows for manual review.",
+    )
     return parser.parse_args()
 
 
-def print_summary(summary: Summary, output_path: str) -> None:
+def print_summary(summary: Summary, output_path: str, audit_csv: str = "") -> None:
     failed_sources = unique_failed_sources()
     print("\nSummary")
     print(f"- subreddits checked: {summary.subreddits_checked}")
     print(f"- total raw posts seen: {summary.total_raw_posts_seen}")
     print(f"- relevant posts saved: {summary.relevant_posts_saved}")
+    print(f"- adjacent/discarded rows: {summary.adjacent_or_discarded_for_audit}")
     print(f"- duplicate posts removed: {summary.duplicate_posts_removed}")
     print(f"- failed or blocked sources: {len(failed_sources)}")
     if failed_sources:
@@ -787,6 +819,8 @@ def print_summary(summary: Summary, output_path: str) -> None:
         if len(failed_sources) > 20:
             print(f"  - ... {len(failed_sources) - 20} more")
     print(f"- output CSV path: {output_path}")
+    if audit_csv:
+        print(f"- audit CSV path: {audit_csv}")
 
 
 def main() -> int:
@@ -799,15 +833,18 @@ def main() -> int:
     config["request_delay_seconds"] = args.delay
     config["run_search"] = not args.skip_search
     config["fetch_post_text"] = not args.no_post_text
+    config["audit_csv"] = args.audit_csv or ""
     if args.subreddit:
         config["subreddits"] = args.subreddit
 
     REQUEST_DELAY_SECONDS = float(config["request_delay_seconds"])
 
     try:
-        posts, summary = collect_posts(config)
-        write_csv(posts, config["output_csv"])
-        print_summary(summary, config["output_csv"])
+        core_posts, audit_posts, summary = collect_posts(config)
+        write_csv(core_posts, config["output_csv"])
+        if config["audit_csv"]:
+            write_csv(audit_posts, config["audit_csv"])
+        print_summary(summary, config["output_csv"], config["audit_csv"])
     except KeyboardInterrupt:
         print("Interrupted by user.", file=sys.stderr)
         return 130
